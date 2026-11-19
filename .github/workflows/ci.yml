@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install locked dependencies
+        run: uv sync --locked
+
+      - name: Run tests
+        run: uv run pytest -q
+
+      - name: Run lint
+        run: uv run ruff check .
+
+      - name: Build container
+        run: docker build --tag nyc-taxi-mlops:ci .
+
+      - name: Smoke-test container readiness
+        shell: bash
+        run: |
+          docker run --detach --rm \
+            --name nyc-taxi-mlops-smoke \
+            --publish 8000:8000 \
+            --env MLFLOW_TRACKING_URI=http://127.0.0.1:9 \
+            --env MLFLOW_HTTP_REQUEST_MAX_RETRIES=0 \
+            --env MLFLOW_HTTP_REQUEST_TIMEOUT=2 \
+            nyc-taxi-mlops:ci
+          trap 'docker stop nyc-taxi-mlops-smoke >/dev/null 2>&1 || true' EXIT
+
+          for attempt in $(seq 1 30); do
+            status=$(curl --silent --output /tmp/health.json \
+              --write-out '%{http_code}' http://127.0.0.1:8000/health || true)
+            if [ "$status" = "503" ]; then
+              grep -q '"status":"degraded"' /tmp/health.json
+              exit 0
+            fi
+            sleep 2
+          done
+
+          docker logs nyc-taxi-mlops-smoke
+          echo "Container did not start in the expected degraded state."
+          exit 1

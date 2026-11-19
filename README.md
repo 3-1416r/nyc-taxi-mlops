@@ -140,3 +140,36 @@ The response contains the estimated hourly demand and the model version used. In
 features return `422`; if the model registry cannot supply a model, `/health` and
 prediction return `503`. The service also attaches request ID and processing-time
 headers. Run the integration tests with `uv run pytest`.
+
+## Container and CI
+
+Build the production image from the repository root:
+
+```powershell
+docker build -t nyc-taxi-mlops:local .
+```
+
+For Docker Desktop on Windows, run MLflow on the host with a host that Docker can
+reach. This exposes MLflow on local network interfaces; use it only on a trusted
+network and stop it when finished:
+
+```powershell
+uv run mlflow server --host 0.0.0.0 `
+  --allowed-hosts host.docker.internal:5000,localhost:5000,127.0.0.1:5000 `
+  --port 5000 --backend-store-uri sqlite:///mlflow.db `
+  --artifacts-destination ./mlartifacts
+```
+
+Run the API image in a second terminal:
+
+```powershell
+docker run --rm -p 8000:8000 `
+  -e MLFLOW_TRACKING_URI=http://host.docker.internal:5000 `
+  nyc-taxi-mlops:local
+```
+
+The image runs as a non-root user and excludes data, local MLflow databases,
+artifacts, virtual environments, and `.env` files from its build context. GitHub
+Actions runs the tests and lint checks, builds the image, then starts it without an
+MLflow registry to verify that the API reports degraded readiness rather than
+crashing when the model registry is unavailable.
