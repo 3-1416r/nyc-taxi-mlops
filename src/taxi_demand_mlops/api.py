@@ -8,6 +8,7 @@ import uuid
 from collections.abc import Callable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Annotated, Protocol
 
 import mlflow
@@ -20,6 +21,15 @@ from mlflow.exceptions import MlflowException
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.responses import JSONResponse
 
+from taxi_demand_mlops.monitoring import (
+    API_REQUEST_DURATION,
+    API_REQUESTS,
+    DEFAULT_PROFILE_PATH,
+    PROMETHEUS_APP,
+    InputDriftMonitor,
+    load_reference_profile,
+    observe_prediction,
+)
 from taxi_demand_mlops.training import FEATURE_COLUMNS
 
 LOGGER = logging.getLogger(__name__)
@@ -84,6 +94,12 @@ def create_app(model_loader: ModelLoader = load_candidate_model) -> FastAPI:
     async def lifespan(app: FastAPI):
         app.state.model = None
         app.state.model_version = None
+        profile_path = Path(
+            os.getenv("TAXI_MONITORING_PROFILE", str(DEFAULT_PROFILE_PATH))
+        )
+        app.state.input_drift_monitor = InputDriftMonitor(
+            load_reference_profile(profile_path)
+        )
         try:
             loaded = model_loader()
         except MlflowException as error:
@@ -102,6 +118,7 @@ def create_app(model_loader: ModelLoader = load_candidate_model) -> FastAPI:
         version="1.0.0",
         lifespan=lifespan,
     )
+    application.mount("/metrics", PROMETHEUS_APP)
 
     @application.exception_handler(RequestValidationError)
     async def validation_error_response(
@@ -117,10 +134,30 @@ def create_app(model_loader: ModelLoader = load_candidate_model) -> FastAPI:
     @application.middleware("http")
     async def add_response_headers(request: Request, call_next):
         started = time.perf_counter()
-        response = await call_next(request)
-        response.headers["X-Request-ID"] = str(uuid.uuid4())
-        response.headers["X-Process-Time-Ms"] = f"{(time.perf_counter() - started) * 1000:.2f}"
-        return response
+        request_id = str(uuid.uuid4())
+        request.state.request_id = request_id
+        status_code = 500
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+            response.headers["X-Request-ID"] = request_id
+            response.headers["X-Process-Time-Ms"] = (
+                f"{(time.perf_counter() - started) * 1000:.2f}"
+            )
+            return response
+        finally:
+            if not request.url.path.startswith("/metrics"):
+                route = request.scope.get("route")
+                route_path = getattr(route, "path", "unmatched")
+                API_REQUESTS.labels(
+                    request.method,
+                    route_path,
+                    str(status_code),
+                ).inc()
+                API_REQUEST_DURATION.labels(
+                    request.method,
+                    route_path,
+                ).observe(time.perf_counter() - started)
 
     @application.get("/health", response_model=HealthResponse)
     def health(request: Request, response: Response) -> HealthResponse:
@@ -157,6 +194,8 @@ def create_app(model_loader: ModelLoader = load_candidate_model) -> FastAPI:
         if not math.isfinite(forecast) or forecast < 0:
             LOGGER.error("Model returned an invalid demand forecast: %r", forecast)
             raise HTTPException(status_code=500, detail="model returned an invalid forecast")
+        request.app.state.input_drift_monitor.observe(payload.model_dump())
+        observe_prediction(model_version, forecast)
         return PredictionResponse(
             forecast_demand=forecast,
             model_version=model_version,

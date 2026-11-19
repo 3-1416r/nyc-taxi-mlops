@@ -40,13 +40,22 @@ def test_health_and_prediction_use_candidate_model_once() -> None:
     with TestClient(create_app(loader)) as client:
         health = client.get("/health")
         prediction = client.post("/v1/predict", json=VALID_REQUEST)
+        unknown_route = client.get("/unmatched/secret-value")
+        metrics = client.get("/metrics/")
 
     assert health.status_code == 200
     assert health.json() == {"status": "ok", "model_version": "1"}
     assert prediction.status_code == 200
+    assert unknown_route.status_code == 404
     assert prediction.json() == {"forecast_demand": 7.25, "model_version": "1"}
     assert prediction.headers["x-request-id"]
     assert float(prediction.headers["x-process-time-ms"]) >= 0
+    assert metrics.status_code == 200
+    assert "taxi_api_requests_total" in metrics.text
+    assert 'path="unmatched"' in metrics.text
+    assert "/unmatched/secret-value" not in metrics.text
+    assert "taxi_model_predictions_total" in metrics.text
+    assert "taxi_forecast_demand_bucket" in metrics.text
     assert loader_calls == 1
     assert model.received is not None
     assert model.received.columns.tolist() == FEATURE_COLUMNS

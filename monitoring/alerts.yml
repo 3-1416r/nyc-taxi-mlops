@@ -1,0 +1,27 @@
+groups:
+  - name: taxi-demand
+    rules:
+      - alert: TaxiApiDown
+        expr: up{job="taxi-api"} == 0
+        for: 30s
+        labels:
+          severity: page
+        annotations:
+          summary: "The taxi prediction API is unreachable"
+
+      - alert: TaxiInputDrift
+        expr: taxi_input_psi > 0.2
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Input drift for {{ $labels.feature }}"
+          description: "PSI is {{ $value | printf \"%.3f\" }} (action threshold 0.2)."
+
+      - alert: TaxiHighP95Latency
+        expr: histogram_quantile(0.95, sum by (le) (rate(taxi_api_request_duration_seconds_bucket[5m]))) > 0.2
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Taxi API P95 latency is above 200 ms"

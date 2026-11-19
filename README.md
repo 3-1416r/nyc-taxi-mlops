@@ -173,3 +173,49 @@ artifacts, virtual environments, and `.env` files from its build context. GitHub
 Actions runs the tests and lint checks, builds the image, then starts it without an
 MLflow registry to verify that the API reports degraded readiness rather than
 crashing when the model registry is unavailable.
+
+## Monitoring and drift demo
+
+The API exports request totals, request latency, forecast counts/distribution, and
+PSI for the three recent-demand inputs (`lag_1`, `lag_24`, and `lag_168`). Its rolling
+PSI window holds 300 predictions and is refreshed every 25 requests. The March
+reference profile is a small, Git-tracked summary generated from the DVC-versioned
+reference dataset; the taxi rows themselves remain outside Git. Only demand lags
+are used for drift alerts, avoiding expected calendar and zone-mix changes.
+
+Rebuild the profile after recreating or changing the DVC dataset:
+
+```powershell
+uv run python scripts/create_monitoring_profile.py
+```
+
+Rebuild and start the API image using the MLflow and Docker instructions above, then
+start Prometheus from the project root:
+
+```powershell
+docker build -t nyc-taxi-mlops:local .
+docker compose -f monitoring/docker-compose.yml up -d
+Start-Process http://127.0.0.1:9090/targets
+```
+
+Prometheus scrapes `http://host.docker.internal:8000/metrics/`. Check that the
+`taxi-api` target is **UP**, and open
+`http://127.0.0.1:9090/alerts` to see alert state. The rules alert if the API is
+unavailable, P95 latency exceeds 200 ms, or PSI exceeds 0.2 for 30 seconds. PSI 0.2
+is a commonly used investigation threshold, not a universal model-quality guarantee.
+
+In another terminal, replay April features with intentionally shifted recent-demand
+lags. The script sends valid predictions at a bounded rate; it does not modify the
+dataset:
+
+```powershell
+uv run python scripts/simulate_drift.py --count 600 --rate 30 --lag-scale 3
+```
+
+After the 300-request window fills, allow up to 30 seconds for the Prometheus alert
+to enter **FIRING**. The forecast histogram and PSI values are also available on
+Prometheus's query page. Stop the local monitoring stack when done:
+
+```powershell
+docker compose -f monitoring/docker-compose.yml down
+```

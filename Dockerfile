@@ -13,6 +13,7 @@ COPY pyproject.toml uv.lock README.md ./
 RUN uv sync --locked --no-dev --no-install-project --no-editable
 
 COPY src/ src/
+COPY monitoring/reference_profile.json monitoring/
 RUN uv sync --locked --no-dev --no-editable
 
 RUN useradd --create-home --uid 10001 app
