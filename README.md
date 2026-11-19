@@ -95,3 +95,38 @@ uv run python scripts/register_model.py <RUN_ID>
 MLflow stores model artifacts with `skops`. The training code explicitly trusts the
 single internal tree type required by its locally trained scikit-learn estimator;
 never load artifacts from an untrusted source.
+
+## Prediction API
+
+Start the MLflow server first, then run the service in another terminal. It loads
+the current model assigned to the `candidate` registry alias once at startup.
+
+```powershell
+uv run mlflow server --host 127.0.0.1 --port 5000 `
+  --backend-store-uri sqlite:///mlflow.db `
+  --artifacts-destination ./mlartifacts
+```
+
+```powershell
+uv run uvicorn taxi_demand_mlops.api:app --host 127.0.0.1 --port 8000
+```
+
+Check readiness and open the generated API documentation:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/health
+Start-Process http://127.0.0.1:8000/docs
+```
+
+Submit the feature values for one pickup zone and target hour:
+
+```powershell
+curl.exe -X POST http://127.0.0.1:8000/v1/predict `
+  -H "Content-Type: application/json" `
+  -d '{"pickup_zone_id":161,"hour":14,"day_of_week":2,"month":3,"is_weekend":false,"lag_1":8,"lag_24":12,"lag_168":10}'
+```
+
+The response contains the estimated hourly demand and the model version used. Invalid
+features return `422`; if the model registry cannot supply a model, `/health` and
+prediction return `503`. The service also attaches request ID and processing-time
+headers. Run the integration tests with `uv run pytest`.
