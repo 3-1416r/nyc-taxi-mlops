@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>From Taxi Trips to a Recoverable Forecasting System</title>
+  <style>
+    :root {
+      --bg: #101923;
+      --panel: #192735;
+      --panel-2: #213344;
+      --text: #f3f6f8;
+      --muted: #bdcbd5;
+      --yellow: #ffd166;
+      --cyan: #72d6d0;
+      --pink: #ff9a9e;
+      --green: #a7e3ad;
+      --line: #496174;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 20px/1.45 "Aptos", "Segoe UI", sans-serif;
+    }
+
+    .slide {
+      display: none;
+      min-height: 100vh;
+      padding: 5vh 7vw 7vh;
+      overflow: auto;
+    }
+
+    .slide.active {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .eyebrow {
+      color: var(--cyan);
+      font-size: .75em;
+      font-weight: 700;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      max-width: 1050px;
+      margin: .25em 0;
+      font-size: clamp(2.4em, 6vw, 4.5em);
+      line-height: 1.04;
+    }
+
+    h2 {
+      margin: .2em 0 .6em;
+      font-size: clamp(2em, 4.5vw, 3.2em);
+      line-height: 1.08;
+    }
+
+    h3 {
+      margin: .1em 0 .35em;
+      color: var(--yellow);
+      font-size: 1.12em;
+    }
+
+    p { max-width: 1050px; }
+    .subtitle { color: var(--muted); font-size: 1.3em; }
+    .accent { color: var(--yellow); }
+    .cyan { color: var(--cyan); }
+    .pink { color: var(--pink); }
+    .green { color: var(--green); }
+    .muted { color: var(--muted); }
+    .small { font-size: .78em; color: var(--muted); }
+
+    .hero {
+      margin-top: 2em;
+      padding: 1.1em 1.3em;
+      border-left: 5px solid var(--yellow);
+      background: var(--panel);
+      font-size: 1.15em;
+    }
+
+    .grid-2, .grid-3 {
+      display: grid;
+      gap: 1em;
+      margin-top: .5em;
+    }
+
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+    .card {
+      padding: 1em 1.1em;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--panel);
+    }
+
+    .card p, .card ul { margin: .3em 0; }
+    ul { padding-left: 1.15em; }
+    li { margin: .28em 0; }
+    .choice { border-top: 4px solid var(--cyan); }
+    .tradeoff { border-top: 4px solid var(--pink); }
+    .future { border-top: 4px solid var(--green); }
+
+    .diagram {
+      width: 100%;
+      max-height: 69vh;
+      margin-top: .4em;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: #131f2a;
+    }
+
+    .diagram text {
+      fill: var(--text);
+      font-family: "Aptos", "Segoe UI", sans-serif;
+    }
+
+    .diagram .label { font-size: 18px; font-weight: 700; }
+    .diagram .detail { fill: var(--muted); font-size: 13px; }
+    .diagram .tiny { fill: var(--muted); font-size: 12px; }
+    .diagram .box { fill: var(--panel); stroke: var(--line); stroke-width: 2; }
+    .diagram .data-box { stroke: var(--yellow); }
+    .diagram .service-box { stroke: var(--cyan); }
+    .diagram .monitor-box { stroke: #8ca3ff; }
+    .diagram .gate-box { stroke: var(--green); }
+    .diagram .rollback-box { stroke: var(--pink); }
+    .diagram .arrow { stroke: var(--muted); stroke-width: 2.5; fill: none; }
+    .diagram .feedback { stroke: var(--pink); stroke-width: 2.5; fill: none; stroke-dasharray: 8 6; }
+
+    .big-number {
+      color: var(--yellow);
+      font-size: 2.8em;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .footer {
+      position: fixed;
+      right: 2vw;
+      bottom: 1.5vh;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .nav {
+      position: fixed;
+      bottom: 1.2vh;
+      left: 2vw;
+      display: flex;
+      align-items: center;
+      gap: .55em;
+    }
+
+    button {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: .45em .8em;
+      background: var(--panel);
+      color: var(--text);
+      font: inherit;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    button:hover { border-color: var(--cyan); }
+    button:focus-visible { outline: 3px solid var(--yellow); }
+    code {
+      color: var(--yellow);
+      font-family: Consolas, monospace;
+      font-size: .9em;
+    }
+
+    @media (max-width: 760px) {
+      body { font-size: 16px; }
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+      .diagram { max-height: none; }
+      .slide { min-height: 100vh; padding: 5vh 5vw 10vh; }
+      .footer { display: none; }
+    }
+
+    @media print {
+      body { background: white; color: #14202a; }
+      .slide {
+        display: flex !important;
+        width: 100%;
+        height: 100vh;
+        min-height: 0;
+        break-after: page;
+        padding: 8vh 8vw;
+        color: #14202a;
+        background: white;
+      }
+      .card, .hero { background: #f1f5f8; }
+      .diagram { background: #f1f5f8; }
+      .diagram text { fill: #14202a; }
+      .diagram .detail, .diagram .tiny { fill: #435665; }
+      .nav, .footer { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="slide active" aria-label="Title">
+      <div class="eyebrow">MLOps • NYC taxi demand</div>
+      <h1>From taxi trips to a <span class="accent">recoverable</span> forecast</h1>
+      <p class="subtitle">An end-to-end system for hourly pickup demand by zone</p>
+      <div class="hero">
+        <strong>The problem:</strong> a model can be accurate today and unreliable tomorrow.
+        This project adds the data, monitoring, evaluation, and recovery loop around the model.
+      </div>
+      <p class="small">A reproducible local demonstration using NYC TLC Yellow Taxi data, Jan–Apr 2024.</p>
+    </section>
+
+    <section class="slide" aria-label="Problem and system diagram">
+      <div class="eyebrow">01 • Problem and system</div>
+      <h2>One system, from raw trips to recovery</h2>
+      <svg class="diagram" viewBox="0 0 1120 600" role="img" aria-labelledby="diagram-title diagram-desc">
+        <title id="diagram-title">Taxi demand forecasting and recovery architecture</title>
+        <desc id="diagram-desc">TLC trip records flow through DVC data preparation into MLflow model training and the champion registry. FastAPI serves predictions and emits metrics. Prometheus detects drift and triggers retraining; a candidate is promoted only after a quality gate, with rollback to the previous champion.</desc>
+        <defs>
+          <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L9,3 z" fill="#bdcbd5"></path>
+          </marker>
+          <marker id="arrow-pink" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L9,3 z" fill="#ff9a9e"></path>
+          </marker>
+        </defs>
+
+        <rect class="box data-box" x="30" y="58" width="200" height="100" rx="14"></rect>
+        <text class="label" x="130" y="94" text-anchor="middle">NYC TLC trips</text>
+        <text class="detail" x="130" y="120" text-anchor="middle">Yellow Taxi • Jan–Apr 2024</text>
+        <text class="detail" x="130" y="140" text-anchor="middle">Pickup time + zone</text>
+
+        <rect class="box data-box" x="275" y="58" width="230" height="100" rx="14"></rect>
+        <text class="label" x="390" y="94" text-anchor="middle">Hourly feature data</text>
+        <text class="detail" x="390" y="120" text-anchor="middle">Zone × hour demand + lags</text>
+        <text class="detail" x="390" y="140" text-anchor="middle">DVC fingerprints • chronological split</text>
+
+        <rect class="box service-box" x="555" y="42" width="235" height="132" rx="14"></rect>
+        <text class="label" x="672" y="76" text-anchor="middle">Train + track</text>
+        <text class="detail" x="672" y="103" text-anchor="middle">HistGradientBoostingRegressor</text>
+        <text class="detail" x="672" y="124" text-anchor="middle">MLflow metrics + model artifact</text>
+        <text class="detail" x="672" y="145" text-anchor="middle">Candidate → quality gate</text>
+
+        <rect class="box gate-box" x="850" y="58" width="230" height="100" rx="14"></rect>
+        <text class="label" x="965" y="94" text-anchor="middle">MLflow registry</text>
+        <text class="detail" x="965" y="120" text-anchor="middle">@champion serves traffic</text>
+        <text class="detail" x="965" y="140" text-anchor="middle">previous version retained</text>
+
+        <path class="arrow" marker-end="url(#arrow)" d="M230 108 H268"></path>
+        <path class="arrow" marker-end="url(#arrow)" d="M505 108 H548"></path>
+        <path class="arrow" marker-end="url(#arrow)" d="M790 108 H843"></path>
+
+        <rect class="box service-box" x="850" y="235" width="230" height="105" rx="14"></rect>
+        <text class="label" x="965" y="273" text-anchor="middle">FastAPI prediction</text>
+        <text class="detail" x="965" y="299" text-anchor="middle">/health • /v1/predict</text>
+        <text class="detail" x="965" y="320" text-anchor="middle">request ID + model version</text>
+        <path class="arrow" marker-end="url(#arrow)" d="M965 158 V228"></path>
+
+        <rect class="box monitor-box" x="555" y="235" width="235" height="105" rx="14"></rect>
+        <text class="label" x="672" y="273" text-anchor="middle">Prometheus monitoring</text>
+        <text class="detail" x="672" y="299" text-anchor="middle">PSI • request health • latency</text>
+        <text class="detail" x="672" y="320" text-anchor="middle">TaxiInputDrift alert</text>
+        <path class="arrow" marker-end="url(#arrow)" d="M850 285 H798"></path>
+
+        <rect class="box monitor-box" x="275" y="235" width="230" height="105" rx="14"></rect>
+        <text class="label" x="390" y="273" text-anchor="middle">Alert-triggered retrain</text>
+        <text class="detail" x="390" y="299" text-anchor="middle">deduplicated alert fingerprint</text>
+        <text class="detail" x="390" y="320" text-anchor="middle">chronological April holdout</text>
+        <path class="arrow" marker-end="url(#arrow)" d="M555 285 H513"></path>
+
+        <rect class="box data-box" x="30" y="235" width="200" height="105" rx="14"></rect>
+        <text class="label" x="130" y="273" text-anchor="middle">Delayed outcomes</text>
+        <text class="detail" x="130" y="299" text-anchor="middle">join labels by request ID</text>
+        <text class="detail" x="130" y="320" text-anchor="middle">MAE + WAPE to MLflow</text>
+        <path class="arrow" marker-end="url(#arrow)" d="M275 285 H238"></path>
+
+        <path class="feedback" marker-end="url(#arrow-pink)" d="M390 235 V192 H672 V182"></path>
+        <text class="tiny" x="530" y="188" text-anchor="middle">alert starts retraining; candidate must pass gate</text>
+
+        <rect class="box rollback-box" x="705" y="430" width="250" height="92" rx="14"></rect>
+        <text class="label" x="830" y="466" text-anchor="middle">Rollback</text>
+        <text class="detail" x="830" y="493" text-anchor="middle">restore previous @champion</text>
+        <path class="feedback" marker-end="url(#arrow-pink)" d="M830 430 V390 H965 V348"></path>
+        <text class="tiny" x="980" y="394">operator action</text>
+
+        <rect class="box" x="30" y="430" width="560" height="92" rx="14"></rect>
+        <text class="label" x="310" y="466" text-anchor="middle">Demo incident: controlled lag shift ×3</text>
+        <text class="detail" x="310" y="493" text-anchor="middle">600 replayed requests → drift alert → candidate evaluation → promotion / rollback</text>
+        <path class="arrow" marker-end="url(#arrow)" d="M310 430 V350"></path>
+
+        <text class="tiny" x="560" y="570" text-anchor="middle">Monitoring detects changed inputs; labels—not PSI—are needed to assess forecast quality.</text>
+      </svg>
+      <p class="small">The local demo simulates drift; it does not represent live production traffic.</p>
+    </section>
+
+    <section class="slide" aria-label="Design choices">
+      <div class="eyebrow">02 • Design choices</div>
+      <h2>Choices made for a reproducible time-series workflow</h2>
+      <div class="grid-2">
+        <article class="card choice">
+          <h3>Chronological evaluation</h3>
+          <p>Jan–Feb train; March reference; April later period. Retraining holds out the final 20% of April hours.</p>
+          <p class="small"><strong>Why:</strong> avoids training on future observations when evaluating earlier ones.</p>
+        </article>
+        <article class="card choice">
+          <h3>One tabular regressor</h3>
+          <p>HistGradientBoostingRegressor learns nonlinear interactions among zone, calendar, and recent-demand lags.</p>
+          <p class="small"><strong>Why:</strong> a practical baseline for structured features, without requiring a separate deep-learning stack.</p>
+        </article>
+        <article class="card choice">
+          <h3>DVC + MLflow</h3>
+          <p>DVC records data fingerprints; MLflow records runs, metrics, model artifacts, and registry versions.</p>
+          <p class="small"><strong>Why:</strong> data lineage and experiment/model lineage solve different reproducibility needs.</p>
+        </article>
+        <article class="card choice">
+          <h3>Champion / candidate</h3>
+          <p>Serving stays on @champion while a candidate is evaluated against it on the same holdout.</p>
+          <p class="small"><strong>Why:</strong> training a model should not automatically put it into service.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="slide" aria-label="Trade-offs">
+      <div class="eyebrow">03 • Trade-offs accepted</div>
+      <h2>Pragmatic choices—with explicit limits</h2>
+      <div class="grid-2">
+        <article class="card tradeoff">
+          <h3>PSI is a warning, not quality</h3>
+          <p>It detects distribution change in three lag inputs. PSI &gt; 0.2 triggers investigation; it does not prove forecast error increased.</p>
+        </article>
+        <article class="card tradeoff">
+          <h3>Synthetic drift is repeatable</h3>
+          <p>The ×3 lag transform reliably fires the alert. It is not evidence that natural April data drifted.</p>
+        </article>
+        <article class="card tradeoff">
+          <h3>Simple local infrastructure</h3>
+          <p>SQLite MLflow and local artifacts keep the demo easy to run, but are not shared, highly available, or production-ready.</p>
+        </article>
+        <article class="card tradeoff">
+          <h3>Manual operational steps</h3>
+          <p>The watcher is a script; rollback is a command; the API must restart to load a changed champion alias.</p>
+        </article>
+        <article class="card tradeoff">
+          <h3>Demo labels arrive immediately</h3>
+          <p>Replay labels come from the dataset. Real delayed outcomes need a durable production source and an ingestion process.</p>
+        </article>
+        <article class="card tradeoff">
+          <h3>Local data, no shared DVC remote</h3>
+          <p>Data can be recreated from TLC; another machine cannot pull it from a shared DVC store yet.</p>
+        </article>
+      </div>
+      <p class="hero"><strong>Quality gate:</strong> require at least 1% MAE improvement and allow at most 2% WAPE regression. These are project thresholds, not universal constants.</p>
+    </section>
+
+    <section class="slide" aria-label="Results and evidence">
+      <div class="eyebrow">04 • Evidence, not overclaiming</div>
+      <h2>The controlled incident completed end to end</h2>
+      <div class="grid-3">
+        <article class="card">
+          <div class="big-number">600</div>
+          <p>simulated requests with lag inputs multiplied by 3</p>
+        </article>
+        <article class="card">
+          <div class="big-number">0.97–1.10</div>
+          <p>observed PSI across lag features (alert threshold: 0.2)</p>
+        </article>
+        <article class="card">
+          <div class="big-number">39</div>
+          <p>tests passed; Docker image built and smoke-tested</p>
+        </article>
+      </div>
+      <div class="grid-2">
+        <article class="card">
+          <h3>April holdout used by the promotion gate</h3>
+          <p>Candidate v3: MAE <strong>3.358</strong>, WAPE <strong>0.191</strong></p>
+          <p>Champion v1: MAE <strong>25.341</strong>, WAPE <strong>1.444</strong></p>
+        </article>
+        <article class="card">
+          <h3>What the delayed labels actually cover</h3>
+          <p>The replay labels cover v1 requests made before promotion. They do <strong>not</strong> measure v3’s delayed-label performance.</p>
+          <p class="small">The holdout scores and replay-wide label scores are different cohorts.</p>
+        </article>
+      </div>
+      <p class="small">Controlled local evidence, not a production performance claim.</p>
+    </section>
+
+    <section class="slide" aria-label="More time roadmap">
+      <div class="eyebrow">05 • If I had more time</div>
+      <h2>Move from reproducible demo to operational system</h2>
+      <div class="grid-2">
+        <article class="card future">
+          <h3>1. Share and reproduce</h3>
+          <ul>
+            <li>Provision a shared DVC remote and test a fresh-machine pull.</li>
+            <li>Use shared MLflow tracking/artifact storage and back up the registry.</li>
+            <li>Get instructor approval for team scope and grant repository access.</li>
+          </ul>
+        </article>
+        <article class="card future">
+          <h3>2. Evaluate real outcomes</h3>
+          <ul>
+            <li>Ingest delayed labels from a durable outcome source.</li>
+            <li>Track model-version cohorts over time and compare against baselines.</li>
+            <li>Set explicit review and rollback policies using labeled quality.</li>
+          </ul>
+        </article>
+        <article class="card future">
+          <h3>3. Harden operations</h3>
+          <ul>
+            <li>Run the watcher as a managed job with retries, health checks, and audit logs.</li>
+            <li>Test deployment and rollback without manual API restarts.</li>
+            <li>Add alert runbooks and failure-injection tests.</li>
+          </ul>
+        </article>
+        <article class="card future">
+          <h3>4. Improve data/model rigor</h3>
+          <ul>
+            <li>Handle timezone and daylight-saving transitions explicitly.</li>
+            <li>Compare against seasonal-naive and alternative model baselines.</li>
+            <li>Evaluate across more months and zones before production claims.</li>
+          </ul>
+        </article>
+      </div>
+      <div class="hero"><strong>Takeaway:</strong> the project demonstrates the full feedback and recovery loop; the next step is real shared infrastructure and real delayed outcomes.</div>
+    </section>
+
+    <section class="slide" aria-label="Closing">
+      <div class="eyebrow">Closing</div>
+      <h2>Monitor → investigate → evaluate → promote or roll back</h2>
+      <p class="subtitle">The model is one component. The system makes its data, decisions, and recovery path visible.</p>
+      <div class="grid-3">
+        <article class="card"><h3>What changed?</h3><p>PSI detects input drift.</p></article>
+        <article class="card"><h3>Did quality change?</h3><p>Delayed labels and MAE/WAPE evaluate outcomes.</p></article>
+        <article class="card"><h3>What if it gets worse?</h3><p>Promotion is guarded; the previous champion can be restored.</p></article>
+      </div>
+      <p class="small">Questions?</p>
+    </section>
+  </main>
+
+  <div class="nav" aria-label="Slide controls">
+    <button id="prev" type="button" aria-label="Previous slide">← Previous</button>
+    <button id="next" type="button" aria-label="Next slide">Next →</button>
+    <span id="counter" class="small" aria-live="polite"></span>
+    <span class="small">Use ← →, Space, or F for fullscreen</span>
+  </div>
+  <div class="footer">NYC Taxi Demand MLOps</div>
+
+  <script>
+    (function () {
+      const slides = Array.from(document.querySelectorAll(".slide"));
+      const counter = document.getElementById("counter");
+      let index = 0;
+
+      function show(nextIndex) {
+        index = Math.max(0, Math.min(slides.length - 1, nextIndex));
+        slides.forEach((slide, i) => {
+          slide.classList.toggle("active", i === index);
+          slide.setAttribute("aria-hidden", i === index ? "false" : "true");
+        });
+        counter.textContent = (index + 1) + " / " + slides.length;
+        history.replaceState(null, "", "#slide-" + (index + 1));
+      }
+
+      document.getElementById("prev").addEventListener("click", () => show(index - 1));
+      document.getElementById("next").addEventListener("click", () => show(index + 1));
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "ArrowRight" || event.key === " " || event.key === "PageDown") {
+          event.preventDefault();
+          show(index + 1);
+        } else if (event.key === "ArrowLeft" || event.key === "PageUp") {
+          event.preventDefault();
+          show(index - 1);
+        } else if (event.key.toLowerCase() === "f") {
+          if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen?.();
+          } else {
+            document.exitFullscreen?.();
+          }
+        }
+      });
+
+      const hashMatch = location.hash.match(/^#slide-(\d+)$/);
+      show(hashMatch ? Number(hashMatch[1]) - 1 : 0);
+    })();
+  </script>
+</body>
+</html>

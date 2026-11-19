@@ -295,7 +295,9 @@ would ingest labels later from its outcome source.
 The reproducible incident scenario, observed results, limitations, and recovery
 evidence are in [docs/incident-report.md](docs/incident-report.md). The complete
 startup, demonstration, rollback, and backup sequence is in
-[docs/demo-runbook.md](docs/demo-runbook.md).
+[docs/demo-runbook.md](docs/demo-runbook.md). The presentation deck is
+[docs/presentation.html](docs/presentation.html); open it in a browser and use the
+arrow keys or on-screen controls to advance, or press `F` for fullscreen.
 
 Run the fast local checks before presenting:
 
