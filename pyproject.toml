@@ -5,8 +5,10 @@ description = "Reproducible MLOps system for NYC taxi demand forecasting"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "pandas>=3.1.1",
+    "mlflow>=3.0,<4",
+    "pandas>=2.2,<3",
     "pyarrow>=26.0.1",
+    "scikit-learn>=1.5,<2",
 ]
 
 [build-system]
@@ -17,5 +19,6 @@ build-backend = "uv_build"
 dev = [
     "dvc>=3.59,<4",
     "pytest>=8.3",
+    "pyyaml>=6.0.3",
     "ruff>=0.9",
 ]

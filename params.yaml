@@ -1,0 +1,7 @@
+loss: poisson
+learning_rate: 0.1
+max_iter: 100
+max_leaf_nodes: 31
+min_samples_leaf: 30
+l2_regularization: 1.0
+random_state: 42

@@ -63,3 +63,24 @@ uv run pytest
 Generated Parquet files go under `data/raw/` and `data/processed/`. They are excluded
 from Git; `data/raw.dvc` and `data/processed.dvc` record their DVC fingerprints. The
 public download source and build script let a fresh checkout recreate the data.
+
+## Experiment tracking
+
+Start the local MLflow tracking server in one terminal:
+
+```powershell
+uv run mlflow server --host 127.0.0.1 --port 5000 `
+  --backend-store-uri sqlite:///mlflow.db `
+  --artifacts-destination ./mlartifacts
+```
+
+In another terminal, train on January-February and evaluate on March:
+
+```powershell
+uv run python scripts/train.py
+```
+
+The run records model parameters, MAE/RMSE/WAPE, a lag-24 baseline, Git state,
+and DVC fingerprints for the raw and processed data. Compare parameter variations
+with overrides such as `uv run python scripts/train.py max_leaf_nodes=15`. April is
+held out for the later drift and incident workflow.
