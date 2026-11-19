@@ -78,24 +78,62 @@ reachable to Docker on the host network.
    holdout. An alert does not guarantee promotion; a rejected candidate leaves the
    champion unchanged.
 
-4. To demonstrate recovery, roll back the champion and restart the API process so
-   it reloads the restored alias:
+4. To demonstrate recovery, perform a controlled rollback after promotion and restart
+   the API process so it reloads the restored alias:
 
    ```powershell
    uv run python scripts/rollback_model.py `
-     --reason "Demo recovery after a delayed-label quality regression"
+     --reason "Controlled demo rollback after promotion; no live impact"
    ```
 
    Stop the API container with Ctrl+C, then rerun the `docker run` command from
    Terminal 2. Verify `/health` reports the restored model version. For a live
-   presentation, do this only after recording the promoted version and the
-   rollback reason in MLflow.
+   presentation, record the promoted version and rollback reason in MLflow. The
+   current replay labels only requests served by v1; they do not establish a
+   regression in v3.
 
 5. Stop the watcher with Ctrl+C, then stop Prometheus and the MLflow server:
 
    ```powershell
    docker compose -f monitoring/docker-compose.yml down
    ```
+
+## 10-15 minute presentation outline
+
+| Time | Show and explain |
+| --- | --- |
+| 0-1 min | Forecasting goal, success criteria, and the controlled nature of this incident. |
+| 1-3 min | TLC ingestion, chronological splits, DVC fingerprints, and MLflow baseline. |
+| 3-5 min | FastAPI health/prediction endpoints, champion version, and Prometheus metrics. |
+| 5-7 min | Start the replay; show PSI crossing 0.2 and `TaxiInputDrift` entering firing. |
+| 7-10 min | Show the alert fingerprint, retraining run, chronological holdout metrics, and promotion decision in MLflow. |
+| 10-12 min | Join the delayed labels by request ID and explain the v1-only cohort results. |
+| 12-14 min | Roll back, restart the API, verify the restored version, then summarize limits and next steps. |
+
+## Technical-choice defense
+
+- **Chronological rather than random splitting:** this is a time-series forecast, so
+  future hours must not leak into training. The final April holdout measures the
+  candidate on later hours than its training data.
+- **Zone-level lags at 1, 24, and 168 hours:** these represent recent demand and
+  daily/weekly repetition. The rolling API monitor compares only these lag features
+  to avoid alerting on expected calendar or zone-mix changes.
+- **PSI as a drift signal, not a quality score:** PSI detects a changed input
+  distribution; it cannot establish that forecasts are inaccurate. Delayed MAE and
+  WAPE provide outcome evidence once labels arrive.
+- **Champion/candidate aliases and a quality gate:** the API continues serving the
+  champion while a candidate is evaluated. Promotion requires a 1% MAE improvement
+  and limits WAPE regression to 2%; the previous champion version is recorded for
+  rollback.
+- **Alert fingerprinting and delayed-label request IDs:** repeated watcher polls
+  must not launch duplicate retraining for one alert, and delayed outcomes must
+  match the exact prediction/model version they evaluate.
+- **Controlled lag scaling:** multiplying replay lags by 3 makes the incident
+  reproducible on demand. It is a demo fault injection, not evidence that natural
+  April demand drifted or that the deployed model is production-ready.
+- **Current operational limits:** MLflow and its registry are local, and there is
+  no shared DVC remote yet. The data can be recreated from the public TLC source;
+  another machine cannot pull the tracked data until a remote is provisioned.
 
 ## Backup and cleanup
 
