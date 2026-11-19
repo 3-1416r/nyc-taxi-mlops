@@ -155,7 +155,7 @@ def main() -> None:
                 "reference_data": str(REFERENCE_PATH),
             }
         )
-        mlflow.sklearn.log_model(
+        model_info = mlflow.sklearn.log_model(
             model,
             name="model",
             # Only trust the internal tree representation used by this local estimator.
@@ -168,6 +168,7 @@ def main() -> None:
             ),
             input_example=reference_features.head(3),
         )
+        mlflow.set_tag("logged_model_id", model_info.model_id)
 
     print(
         f"Reference MAE {metrics['reference_mae']:.3f} | "

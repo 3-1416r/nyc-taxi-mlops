@@ -85,6 +85,13 @@ and DVC fingerprints for the raw and processed data. Compare parameter variation
 with overrides such as `uv run python scripts/train.py max_leaf_nodes=15`. April is
 held out for the later drift and incident workflow.
 
+After comparing runs in the MLflow UI, register the selected run under the candidate
+alias:
+
+```powershell
+uv run python scripts/register_model.py <RUN_ID>
+```
+
 MLflow stores model artifacts with `skops`. The training code explicitly trusts the
 single internal tree type required by its locally trained scikit-learn estimator;
 never load artifacts from an untrusted source.
