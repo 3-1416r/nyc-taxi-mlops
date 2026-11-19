@@ -39,3 +39,27 @@ for a three-person group, so confirm with the instructor that solo work is accep
 
 Python 3.11 is the initial target. Setup and run commands will be added alongside
 the first working pipeline so they can be verified end to end.
+
+## Data pipeline
+
+The initial dataset uses official NYC TLC Yellow Taxi trip records for January-April
+2024. The split is chronological: January-February for training, March for reference
+evaluation, and April as the later drift period. Trip records are aggregated by
+pickup zone and pickup hour. Calendar fields and per-zone lags at 1, 24, and 168
+hours are created; the first week is excluded from the splits until all lags exist.
+
+TLC publishes the monthly Parquet files at
+`https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_YYYY-MM.parquet`.
+Pickup timestamps are treated as the naive NYC local times supplied by TLC.
+
+```powershell
+uv sync
+uv run python scripts/download_data.py
+uv run python scripts/build_dataset.py
+uv run dvc status
+uv run pytest
+```
+
+Generated Parquet files go under `data/raw/` and `data/processed/`. They are excluded
+from Git; `data/raw.dvc` and `data/processed.dvc` record their DVC fingerprints. The
+public download source and build script let a fresh checkout recreate the data.
