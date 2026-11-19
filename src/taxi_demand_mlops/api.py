@@ -24,6 +24,13 @@ from taxi_demand_mlops.training import FEATURE_COLUMNS
 
 LOGGER = logging.getLogger(__name__)
 MODEL_URI = "models:/nyc-taxi-demand@candidate"
+INTEGER_FEATURE_COLUMNS = (
+    "pickup_zone_id",
+    "hour",
+    "day_of_week",
+    "month",
+    "is_weekend",
+)
 
 
 class PredictiveModel(Protocol):
@@ -133,6 +140,14 @@ def create_app(model_loader: ModelLoader = load_candidate_model) -> FastAPI:
         features = pd.DataFrame(
             [payload.model_dump()],
             columns=FEATURE_COLUMNS,
+        )
+        features = features.astype(
+            {
+                **{column: "int32" for column in INTEGER_FEATURE_COLUMNS},
+                "lag_1": "float32",
+                "lag_24": "float32",
+                "lag_168": "float32",
+            }
         )
         prediction = model.predict(features)
         if len(prediction) != 1:

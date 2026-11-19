@@ -121,9 +121,19 @@ Start-Process http://127.0.0.1:8000/docs
 Submit the feature values for one pickup zone and target hour:
 
 ```powershell
-curl.exe -X POST http://127.0.0.1:8000/v1/predict `
-  -H "Content-Type: application/json" `
-  -d '{"pickup_zone_id":161,"hour":14,"day_of_week":2,"month":3,"is_weekend":false,"lag_1":8,"lag_24":12,"lag_168":10}'
+$request = @{
+  pickup_zone_id = 161
+  hour = 14
+  day_of_week = 2
+  month = 3
+  is_weekend = $false
+  lag_1 = 8
+  lag_24 = 12
+  lag_168 = 10
+} | ConvertTo-Json -Compress
+
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/v1/predict `
+  -ContentType "application/json" -Body $request
 ```
 
 The response contains the estimated hourly demand and the model version used. Invalid

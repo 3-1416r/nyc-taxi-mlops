@@ -51,6 +51,16 @@ def test_health_and_prediction_use_candidate_model_once() -> None:
     assert model.received is not None
     assert model.received.columns.tolist() == FEATURE_COLUMNS
     assert model.received.iloc[0].to_dict() == VALID_REQUEST
+    assert model.received.dtypes.astype(str).to_dict() == {
+        "pickup_zone_id": "int32",
+        "hour": "int32",
+        "day_of_week": "int32",
+        "month": "int32",
+        "is_weekend": "int32",
+        "lag_1": "float32",
+        "lag_24": "float32",
+        "lag_168": "float32",
+    }
 
 
 @pytest.mark.parametrize(
