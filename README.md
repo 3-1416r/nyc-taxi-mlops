@@ -84,3 +84,7 @@ The run records model parameters, MAE/RMSE/WAPE, a lag-24 baseline, Git state,
 and DVC fingerprints for the raw and processed data. Compare parameter variations
 with overrides such as `uv run python scripts/train.py max_leaf_nodes=15`. April is
 held out for the later drift and incident workflow.
+
+MLflow stores model artifacts with `skops`. The training code explicitly trusts the
+single internal tree type required by its locally trained scikit-learn estimator;
+never load artifacts from an untrusted source.

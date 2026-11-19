@@ -126,6 +126,9 @@ def _git(*args: str) -> str:
 
 
 def main() -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="backslashreplace")
+
     params = load_params(sys.argv[1:])
     train = pd.read_parquet(TRAIN_PATH)
     reference = pd.read_parquet(REFERENCE_PATH)
@@ -155,6 +158,10 @@ def main() -> None:
         mlflow.sklearn.log_model(
             model,
             name="model",
+            # Only trust the internal tree representation used by this local estimator.
+            skops_trusted_types=[
+                "sklearn.ensemble._hist_gradient_boosting.predictor.TreePredictor"
+            ],
             signature=infer_signature(
                 reference_features.head(10),
                 model.predict(reference_features.head(10)),
