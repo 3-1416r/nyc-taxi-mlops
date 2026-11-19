@@ -28,7 +28,7 @@ class FakeModel:
         return self.predictions
 
 
-def test_health_and_prediction_use_candidate_model_once() -> None:
+def test_health_and_prediction_use_champion_model_once() -> None:
     model = FakeModel()
     loader_calls = 0
 

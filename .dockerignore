@@ -13,6 +13,7 @@ htmlcov
 .dvcignore
 data/raw
 data/processed
+.monitoring-output
 mlflow.db
 mlflow.db-*
 mlartifacts

@@ -23,6 +23,16 @@ FEATURE_COLUMNS = [
     "lag_24",
     "lag_168",
 ]
+MODEL_INPUT_DTYPES = {
+    "pickup_zone_id": "int32",
+    "hour": "int32",
+    "day_of_week": "int32",
+    "month": "int32",
+    "is_weekend": "int32",
+    "lag_1": "float32",
+    "lag_24": "float32",
+    "lag_168": "float32",
+}
 TARGET_COLUMN = "demand"
 TRAIN_PATH = Path("data/processed/train.parquet")
 REFERENCE_PATH = Path("data/processed/reference.parquet")
@@ -94,6 +104,16 @@ def _split_features_target(
     if (target < 0).any():
         raise ValueError("Poisson regression requires non-negative demand")
     return features, target
+
+
+def prepare_model_features(frame: pd.DataFrame) -> pd.DataFrame:
+    missing_columns = set(FEATURE_COLUMNS).difference(frame.columns)
+    if missing_columns:
+        raise ValueError(f"Prediction data is missing columns: {sorted(missing_columns)}")
+    features = frame[FEATURE_COLUMNS]
+    if features.isna().any().any():
+        raise ValueError("Prediction data contains missing feature values")
+    return features.astype(MODEL_INPUT_DTYPES)
 
 
 def _weighted_absolute_percentage_error(

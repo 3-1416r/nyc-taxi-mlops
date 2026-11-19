@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import math
 import os
@@ -8,6 +9,7 @@ import uuid
 from collections.abc import Callable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Protocol
 
@@ -30,17 +32,15 @@ from taxi_demand_mlops.monitoring import (
     load_reference_profile,
     observe_prediction,
 )
-from taxi_demand_mlops.training import FEATURE_COLUMNS
+from taxi_demand_mlops.training import (
+    FEATURE_COLUMNS,
+    prepare_model_features,
+)
 
 LOGGER = logging.getLogger(__name__)
-MODEL_URI = "models:/nyc-taxi-demand@candidate"
-INTEGER_FEATURE_COLUMNS = (
-    "pickup_zone_id",
-    "hour",
-    "day_of_week",
-    "month",
-    "is_weekend",
-)
+MODEL_NAME = "nyc-taxi-demand"
+SERVING_ALIAS = "champion"
+MODEL_URI = f"models:/{MODEL_NAME}@{SERVING_ALIAS}"
 
 
 class PredictiveModel(Protocol):
@@ -79,17 +79,19 @@ class HealthResponse(BaseModel):
     model_version: str | None
 
 
-def load_candidate_model() -> LoadedModel:
+def load_serving_model() -> LoadedModel:
     tracking_uri = os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000")
-    model_uri = os.getenv("MODEL_URI", MODEL_URI)
+    model_name = os.getenv("MODEL_NAME", MODEL_NAME)
+    model_alias = os.getenv("MODEL_ALIAS", SERVING_ALIAS)
+    model_uri = os.getenv("MODEL_URI", f"models:/{model_name}@{model_alias}")
     mlflow.set_tracking_uri(tracking_uri)
     client = MlflowClient(tracking_uri=tracking_uri)
-    version = client.get_model_version_by_alias("nyc-taxi-demand", "candidate")
+    version = client.get_model_version_by_alias(model_name, model_alias)
     model = mlflow.pyfunc.load_model(model_uri)
     return LoadedModel(model=model, version=str(version.version))
 
 
-def create_app(model_loader: ModelLoader = load_candidate_model) -> FastAPI:
+def create_app(model_loader: ModelLoader = load_serving_model) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.model = None
@@ -103,7 +105,7 @@ def create_app(model_loader: ModelLoader = load_candidate_model) -> FastAPI:
         try:
             loaded = model_loader()
         except MlflowException as error:
-            LOGGER.exception("Unable to load candidate model from MLflow")
+            LOGGER.exception("Unable to load champion model from MLflow")
             app.state.model_load_error = type(error).__name__
         else:
             app.state.model = loaded.model
@@ -174,17 +176,8 @@ def create_app(model_loader: ModelLoader = load_candidate_model) -> FastAPI:
         if model is None or model_version is None:
             raise HTTPException(status_code=503, detail="model not loaded")
 
-        features = pd.DataFrame(
-            [payload.model_dump()],
-            columns=FEATURE_COLUMNS,
-        )
-        features = features.astype(
-            {
-                **{column: "int32" for column in INTEGER_FEATURE_COLUMNS},
-                "lag_1": "float32",
-                "lag_24": "float32",
-                "lag_168": "float32",
-            }
+        features = prepare_model_features(
+            pd.DataFrame([payload.model_dump()], columns=FEATURE_COLUMNS)
         )
         prediction = model.predict(features)
         if len(prediction) != 1:
@@ -196,6 +189,19 @@ def create_app(model_loader: ModelLoader = load_candidate_model) -> FastAPI:
             raise HTTPException(status_code=500, detail="model returned an invalid forecast")
         request.app.state.input_drift_monitor.observe(payload.model_dump())
         observe_prediction(model_version, forecast)
+        LOGGER.info(
+            "prediction_record=%s",
+            json.dumps(
+                {
+                    "request_id": request.state.request_id,
+                    "predicted_at": datetime.now(UTC).isoformat(),
+                    "model_version": model_version,
+                    "forecast_demand": forecast,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+        )
         return PredictionResponse(
             forecast_demand=forecast,
             model_version=model_version,
